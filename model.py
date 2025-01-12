@@ -9,31 +9,32 @@ class Encoder(nn.Module):
         self.z_dim = output_chan
 
         self.encoder = nn.Sequential(
-            self.init_conv_block(im_chan, hidden_dim),
-            self.init_conv_block(hidden_dim, hidden_dim * 2),
-            self.init_conv_block(hidden_dim * 2, output_chan * 2, final_layer=True),
-        )
+            # First Conv Block: im_chan -> hidden_dim
+            nn.Conv2d(im_chan, hidden_dim, kernel_size=3, stride=2, padding=1),  # Output: 32x32
+            nn.BatchNorm2d(hidden_dim),
+            nn.ReLU(inplace=True),
+            
+            # Second Conv Block: hidden_dim -> hidden_dim * 2
+            nn.Conv2d(hidden_dim, hidden_dim * 2, kernel_size=3, stride=2, padding=1),  # Output: 16x16
+            nn.BatchNorm2d(hidden_dim * 2),
+            nn.ReLU(inplace=True),
+            
+            # Third Conv Block: hidden_dim * 2 -> output_chan * 2
+            nn.Conv2d(hidden_dim * 2, output_chan * 2, kernel_size=3, stride=2, padding=1),  # Output: 8x8
+            nn.BatchNorm2d(output_chan * 2),
+            nn.ReLU(inplace=True),
 
-    def init_conv_block(self, input_channels, output_channels, kernel_size=4, stride=2, padding=0, final_layer=False):
-        layers = [
-            nn.Conv2d(input_channels, output_channels,
-                          kernel_size=kernel_size,
-                          padding=padding,
-                          stride=stride)
-        ]
-        if not final_layer:
-            layers += [
-                nn.BatchNorm2d(output_channels),
-                nn.ReLU(inplace=True)
-            ]
-        return nn.Sequential(*layers)
+            nn.Conv2d(output_chan * 2, output_chan * 2, kernel_size=3, stride=2, padding=0)  # Output: 4x1x1
+        )
 
     def forward(self, image):
         encoder_pred = self.encoder(image)
         encoding = encoder_pred.view(len(encoder_pred), -1)
         mean = encoding[:, :self.z_dim]
         logvar = encoding[:, self.z_dim:]
+
         return mean, torch.exp(logvar * 0.5)
+
 
 class Decoder(nn.Module):
     def __init__(self, z_dim=32, im_chan=1, hidden_dim=64):
