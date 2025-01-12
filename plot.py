@@ -1,4 +1,4 @@
-def load_and_plot_losses(loss_file):
+def load_and_plot_losses(train_loss_file, val_loss_file):
     """
     Load and plot training and validation losses from a file.
 
@@ -7,25 +7,14 @@ def load_and_plot_losses(loss_file):
 
     """
     import matplotlib.pyplot as plt
+    import numpy as np
 
-    try:
-        with open(loss_file, 'r') as f:
-            lines = f.readlines()
+    try: 
+        # load from numpy file
+        train_losses = np.load(train_loss_file)
+        val_losses = np.load(val_loss_file)
 
-        # Separate training and validation losses
-        train_losses = []
-        val_losses = []
-        parsing_train = True
-
-        for line in lines:
-            line = line.strip()
-            if line == "Validation Losses:":
-                parsing_train = False
-                continue
-            if parsing_train and line != "Training Losses:":
-                train_losses.append(float(line))
-            elif not parsing_train:
-                val_losses.append(float(line))
+        print(f"Training Losses: {train_losses}")
 
         # Plot the losses
         plt.figure(figsize=(10, 6))
@@ -39,9 +28,12 @@ def load_and_plot_losses(loss_file):
         plt.show()
 
     except FileNotFoundError:
-        print(f"Error: File {loss_file} not found.")
+        print(f"Error: File not found.")
     except Exception as e:
         print(f"An error occurred: {e}")
 
 if __name__ == "__main__":
-    load_and_plot_losses("loss_vae_8_20250111-023053.txt")
+    date = "20250112-125505"
+    train_loss_file = date + "/train_losses_vae_8_20250112-125505.npy"
+    val_loss_file = date + "/val_losses_vae_8_20250112-125505.npy"
+    load_and_plot_losses(train_loss_file=train_loss_file, val_loss_file=val_loss_file)
