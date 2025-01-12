@@ -1,27 +1,20 @@
+# load packages 
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from torch.distributions.normal import Normal
 from torch.distributions.kl import kl_divergence
+import torchvision.utils as 
+import tensorflow_probability as tfp
 from tqdm import tqdm
-import torchvision.utils as vutils
+import numpy as np
 import matplotlib.pyplot as plt
 import time
-import numpy as np
 import os
-import tensorflow_probability as tfp
 
+# load Encoder, Decoder, and VAE 
 from model import Encoder, Decoder, VAE
-
-# Define the reconstruction loss
-reconstruction_loss = nn.BCELoss(reduction='sum')
-
-def kl_divergence_loss(z_dist):
-    return kl_divergence(z_dist,
-                         Normal(torch.zeros_like(z_dist.mean),
-                                torch.ones_like(z_dist.stddev))
-                         ).sum(-1).sum()
 
 # class Encoder(nn.Module):
 #     def __init__(self, im_chan=1, output_chan=32, hidden_dim=16):
@@ -115,27 +108,53 @@ def kl_divergence_loss(z_dist):
 #         decoding = self.decoder(z)
 #         return decoding, z_dist
 
-# Data preparation
+# DATA PREPARATION 
+# define data transformation 
 transform = transforms.Compose([
     transforms.ToTensor(),                          # Convert image to tensor
     transforms.Lambda(lambda x: (x > 0.5).float())  # Threshold: convert pixels above 0.5 to 1, others to 0
 ])
 
+# load MNIST dataset, apply data transformation and create DataLoader  
 trainset = datasets.MNIST('.', download=True, train=True, transform=transform)
 train_loader = DataLoader(trainset, batch_size=64, shuffle=True)
 
 testset = datasets.MNIST('.', download=True, train=False, transform=transform)
 test_loader = DataLoader(testset, batch_size=64, shuffle=True)
 
+
+# DEFINE LOSS FUNCTION 
+# define the reconstruction loss by Binary Cross-Entropy (sum over all pixels)
+reconstruction_loss = nn.BCELoss(reduction='sum')
+
+# define KL-divergence 
+def kl_divergence_loss(z_dist):
+    # calculate KL-divergence between the latent distribution (z_dist)
+    # and a standard normal distribution
+    return kl_divergence(z_dist,
+                         Normal(torch.zeros_like(z_dist.mean),
+                                torch.ones_like(z_dist.stddev))
+                         ).sum(-1).sum()
+
+# Function to display images in a grid 
 def show_images_grid(images, date, title='Sample Images Grid', save=False):
     '''
-    show input torch tensor of images [num_images, ch, w, h] in a grid
+    Display a grid of images from a PyTorch tensor.
+    Parameters:
+    - images: tensor of shape [num_images, channels, height, width]
+    - date: to differ between different time, used in file name  
+    - title: title for the plot
+    - save: save the plot to file if True
     '''
+    
     plt.figure(figsize=(7, 7))
+    # create a grid of images 
     grid = vutils.make_grid(images, nrow=images.shape[0]//2, padding=2, normalize=True)
+    # rearrange dimensions for display 
     plt.imshow(grid.permute(1, 2, 0).cpu().numpy())
     plt.title(title)
     plt.axis('off')
+    # save or display the plot 
     if save:
         plt.savefig(date + '/' + title + '.png')
     else:
@@ -143,11 +162,16 @@ def show_images_grid(images, date, title='Sample Images Grid', save=False):
     # close the plot
     plt.close()
 
+# Training function for the VAE model 
 def train_model(date, epochs=10, z_dim=16):
+    # use GPU if available 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # initialize VAE model 
     model = VAE(z_dim=z_dim).to(device)
+    # use Adam optimizer 
     model_opt = torch.optim.Adam(model.parameters())
 
+    # initialize lists to store training and validation losses 
     training_losses = []
     validation_losses = []
 
@@ -157,6 +181,7 @@ def train_model(date, epochs=10, z_dim=16):
     training_kl_losses = []
     validation_kl_losses = []
 
+    # loop over epochs 
     for epoch in range(epochs):
         print(f"Epoch {epoch + 1}/{epochs}")
 
@@ -166,31 +191,38 @@ def train_model(date, epochs=10, z_dim=16):
         train_recon_loss = 0.0
         train_kl_loss = 0.0
 
+        # initialize idx for plotting the latent space 
         idx = 0
+        # loop over training batches 
         for images, _ in tqdm(train_loader, desc="Training"):
-    
+            # move images to the appropriate device 
             images = images.to(device)
+            # reset gradients 
             model_opt.zero_grad()
 
+            # forward pass through the VAE 
             recon_images, encoding = model(images)
+            # compute reconstruction loss. KL-divergence loss and sum to ELBO loss  
             recon_loss = reconstruction_loss(recon_images, images)
             kl_loss = kl_divergence_loss(encoding)
-
             loss = recon_loss + kl_loss
+            # backpropagation 
             loss.backward()
+            # update model weights 
             model_opt.step()
 
+            # accumulate losses 
             train_loss += loss.item()
             train_recon_loss += recon_loss.item()
             train_kl_loss += kl_loss.item()
 
-
+            # in the first epoch and for latent dimension 2 plot the latent space for every 75 update steps 
             if epoch == 0 and idx % 75 == 0 and z_dim == 2:
                 plot_latent_images(model, 20, epoch, z_dim=2, im_size=28, save=True, date=date, frame=idx)
 
             idx += 1
-        idx = 0
 
+        # average training losses over all batches and append to lists for plotting later 
         train_loss /= len(train_loader.dataset)
         training_losses.append(train_loss)
 
@@ -201,11 +233,14 @@ def train_model(date, epochs=10, z_dim=16):
         training_kl_losses.append(train_kl_loss)
 
         # Validation phase
+        # set model to evaluation mode 
         model.eval()
+        # initialize loss trackers 
         val_loss = 0.0
         val_recon_loss = 0.0
         val_kl_loss = 0.0
 
+        # HIER BIN ICH BEIM KOMMENTIEREN 
         with torch.no_grad():
             for images, _ in tqdm(test_loader, desc="Validation"):
                 images = images.to(device)

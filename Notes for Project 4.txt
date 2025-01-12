@@ -1,0 +1,60 @@
+Variational AutoEncoders by GeeksforGeeks 
+- learning a simple representation of the input data
+- reconstruction loss ensures a close match of output with input
+- The encoder aims to learn efficient data encoding from the dataset and pass it into a bottleneck architecture. The other part of the autoencoder is a decoder that uses latent space in the bottleneck layer to regenerate images similar to the dataset. These results backpropagate the neural network in the form of the loss function.
+- proposed in 2013 by Diederik P. Kingma and Max Welling at Google and Qualcomm
+- application: image generation, data generation, anomaly detection, data compression, reconstruction 
+- provides a probabilistic manner for describing an observation in latent space by formulating our encoder to describe a probability distribution for each latent attribute.
+- The encoder network takes raw input data and transforms it into a probability distribution within the latent space
+- latent code is a probabilistic encoding allowing the VAE to express not just a single point in the latent space but a distribution of potential representations 
+- decoder network takes a sampled point from the latent distribution and reconstructs it back into data space
+- During training, the model refines both the encoder and decoder parameters to minimize the reconstruction loss – the disparity between the input data and the decoded output
+- reconstruction loss (accurate reconstruction) + the regularization term (regularize latent space, ensuring that it adheres to a specified distribution, preventing overfitting and promoting generalization; often represented by the Kullback-Leibler divergence) 
+- probabilistic nature of the latent space also enables the generation of novel samples by drawing random points from the learned distribution
+- KL-divergence: minimize difference betw. a supposed distribution and original distribution of dataset
+- Variational autoencoders introduce a probabilistic interpretation in the latent space, allowing for the generation of diverse outputs by sampling from learned distributions. This contrasts with standard autoencoders, which use a deterministic mapping in the latent space.
+- PCA focuses on finding the principal components to represent existing data in a lower-dimensional space, while VAEs learn probabilistic mapping that allows for generating new data points. 
+- drawbacks of VAE: blurry reconstructins, unrealistic outputs 
+
+--------------------------------------------------------------------------------------------
+INTRODUCTION TO VARIATIONAL AUTOENCODERS USING KERAS 
+- generative models learn the distribution that generates the features themselves
+- use this distribution to generate new data that is similar to the training data
+
+Autoencoders 
+- Autoencoders (AE): method of bottlenecking the learning of an identity map in order to find a lower-dimensional representation of a dataset, something that is useful for both dimensionality reduction and data compression
+- AE: NN learns encoding function compressing input to latent space representation and decoding function mapping from latent space back to original space (ideally: functions are inverses of each other, lossless compression) 
+- encoder: convolutional layers extract salient features of each digit, fully connected network maps features to latent space (placing it in this space according to which feaures are present and to what degree 
+- Why can we not generate by AE? 
+-- AE optimize for faithful reconstructions, i.e., AE learns to use latent space as an embedding space to create optimal compressions rather than learning to characterize the latent space globally as a well-behaved feature landscape  
+-- reconstruction loss betw. reconstructed and original image 
+-- AE might learn highly effective and lossless compression technique for the training data, but might not be the true distribution -> not able to generate new data from the latent space 
+
+Variational Autoencoders 
+- VAE: extend the core concept of AEs by placing constraints on how the identity map is learned. These constraints result in VAEs characterizing the lower-dimensional latent space as a landscape of salient features seen in the training data, rather than as a simple embedding space for data as AEs do. -> makes data generation possible 
+- rather than map input data to points in the latent space, they map to parameters of a distribution 
+- try to characterize the latent space as a feature landscape
+- generate new data and modify the salient features of the input data 
+- initially latent vectors are decoded to meaningless images of white noise 
+- multivariate Gaussians: mean and covariance vector 
+- image of 6 -> mean + covariance vct in latence space -> sample from this distr. -> pass data point into decoder -> image that has salient features of a six -> low loss  
+- decoding network will learn to associate this area to images that have the salient features seen in sixes 
+- image of 1 -> point in latence space near to former 6 -> ... -> high loss -> adjust encoder to map ones and six to further away regions 
+- Verwechslung zw. 0 und 6 -> many shared salient features -> los will be relatively small 
+- learn to map intermediate points to images that could reasonably be interpreted as “6” or “0”. The decodings of the intermediate points yield snapshots of continuous transformations from one shape to another.
+- continuous transition betw. feature regions: path between any two points in the latent space that has a continuous transition between their features along the path
+- feature landscape (open loops, vertical line, partially open), not digit landscape 
+
+-------------------------------------------------------------------------------------------
+TENSORFLOW: VARIATIONAL AUTOENCODER FOR MNIST DIGITS
+- nice visualization 
+
+-------------------------------------------------------------------------------------------
+VARIATIONAL AUTOENCODERS 
+- class of probabilistic models that find latent, low-dimensional representations of data. VAEs are thus a method for performing dimensionality reduction to reduce data down to their intrinsic dimensionality.
+- compress x into a low dimensional data point z by one function h_phi (NN) and decompress it back into an approximation x' of x by f_theta (NN), where theta and phi are parameters of NNs 
+- VAE descripe a joint distribution over samples and their associated latent variable, p(x,z) 
+- VAE are probabilistic as z_i is randomly generated for i.i.d. samples x_1, ..., x_n 
+- sample latent variable z ~ N(\mu,\sigma^2 I) -> use a deterministic function to map z to parameters psi of another distribution used to sample x (psi = f_theta(z)) and x ~ D(psi)
+- see schematic illustration of the generative process 
+- sehr gute Quelle  

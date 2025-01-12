@@ -1,3 +1,4 @@
+# load packages 
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -7,6 +8,7 @@ from torchvision import datasets, transforms
 
 import umap.umap_ as umap
 
+# load VAE from model 
 from model import VAE
 
 
