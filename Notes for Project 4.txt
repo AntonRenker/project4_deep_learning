@@ -1,10 +1,7 @@
 Variational AutoEncoders by GeeksforGeeks 
-- learning a simple representation of the input data
-- reconstruction loss ensures a close match of output with input
+- t
 - The encoder aims to learn efficient data encoding from the dataset and pass it into a bottleneck architecture. The other part of the autoencoder is a decoder that uses latent space in the bottleneck layer to regenerate images similar to the dataset. These results backpropagate the neural network in the form of the loss function.
-- proposed in 2013 by Diederik P. Kingma and Max Welling at Google and Qualcomm
-- application: image generation, data generation, anomaly detection, data compression, reconstruction 
-- provides a probabilistic manner for describing an observation in latent space by formulating our encoder to describe a probability distribution for each latent attribute.
+- provides a probabilistic manner for describing an observation in latent space by formulating our encodert to describe a probability distribution for each latent attribute.
 - The encoder network takes raw input data and transforms it into a probability distribution within the latent space
 - latent code is a probabilistic encoding allowing the VAE to express not just a single point in the latent space but a distribution of potential representations 
 - decoder network takes a sampled point from the latent distribution and reconstructs it back into data space
@@ -46,15 +43,8 @@ Variational Autoencoders
 - feature landscape (open loops, vertical line, partially open), not digit landscape 
 
 -------------------------------------------------------------------------------------------
-TENSORFLOW: VARIATIONAL AUTOENCODER FOR MNIST DIGITS
-- nice visualization 
-
--------------------------------------------------------------------------------------------
 VARIATIONAL AUTOENCODERS 
-- class of probabilistic models that find latent, low-dimensional representations of data. VAEs are thus a method for performing dimensionality reduction to reduce data down to their intrinsic dimensionality.
-- compress x into a low dimensional data point z by one function h_phi (NN) and decompress it back into an approximation x' of x by f_theta (NN), where theta and phi are parameters of NNs 
-- VAE descripe a joint distribution over samples and their associated latent variable, p(x,z) 
-- VAE are probabilistic as z_i is randomly generated for i.i.d. samples x_1, ..., x_n 
-- sample latent variable z ~ N(\mu,\sigma^2 I) -> use a deterministic function to map z to parameters psi of another distribution used to sample x (psi = f_theta(z)) and x ~ D(psi)
-- see schematic illustration of the generative process 
+- 
+- 
+
 - sehr gute Quelle  

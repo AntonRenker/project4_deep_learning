@@ -123,20 +123,8 @@ testset = datasets.MNIST('.', download=True, train=False, transform=transform)
 test_loader = DataLoader(testset, batch_size=64, shuffle=True)
 
 
-# DEFINE LOSS FUNCTION 
-# define the reconstruction loss by Binary Cross-Entropy (sum over all pixels)
-reconstruction_loss = nn.BCELoss(reduction='sum')
-
-# define KL-divergence 
-def kl_divergence_loss(z_dist):
-    # calculate KL-divergence between the latent distribution (z_dist)
-    # and a standard normal distribution
-    return kl_divergence(z_dist,
-                         Normal(torch.zeros_like(z_dist.mean),
-                                torch.ones_like(z_dist.stddev))
-                         ).sum(-1).sum()
-
-# Function to display images in a grid 
+# VISUALIZATION METHODS 
+# Function to visualize images in a grid 
 def show_images_grid(images, date, title='Sample Images Grid', save=False):
     '''
     Display a grid of images from a PyTorch tensor.
@@ -162,6 +150,108 @@ def show_images_grid(images, date, title='Sample Images Grid', save=False):
     # close the plot
     plt.close()
 
+# function to visualize the latent space 
+def plot_latent_images(model, n, epoch, z_dim=2, im_size=28, save=True, date=None, frame=None):
+    """
+    Generate a grid of images by sampling from the latent space.
+
+    Parameters:
+    - model: the trained VAE model.
+    - n: the number of images per dimension in the grid.
+    - epoch: current training epoch.
+    - z_dim: dimensionality of the latent space.
+    - im_size: size of each generated image.
+    - save: whether to save the resulting image grid.
+    - save_dir: directory to save the images if save=True.
+    """
+
+    # ensure the model is in evaluation mode
+    model.eval()
+
+    # initialize the dimensions of the ouput image grid 
+    image_width = im_size * n # width of grid 
+    image_height = image_width # height of grid 
+    image = np.zeros((image_height, image_width)) # empty numpy array to store final grid 
+
+    # generate evenly spaced points in the latent space
+    grid_values = torch.linspace(-2, 2, steps=n)
+
+    # generate images for each point in the grid
+    # disable gradient calculation for efficiency 
+    with torch.no_grad(): 
+        # loop through vertical and horizontal grid positions 
+        for i, yi in enumerate(grid_values):
+            for j, xi in enumerate(grid_values):
+                # create a latent vector for the current grid coordinates 
+                z = torch.tensor([[xi, yi]], dtype=torch.float32).to(next(model.parameters()).device)
+                # adjust dimensions to match decoder's input requirements 
+                z = z.view(-1, z_dim)  
+                # decode the latent vector to generate an image 
+                decoded_image = model.decoder(z)
+                # process the decoded image to remove extra dimensions 
+                decoded_image = decoded_image.squeeze(0).squeeze(0).cpu().numpy()  # (1, 1, 28, 28) -> (28, 28)
+                # place the decoded image in the grid 
+                image[i * im_size: (i + 1) * im_size,
+                      j * im_size: (j + 1) * im_size] = decoded_image
+
+    # plot the resulting image grid
+    plt.figure(figsize=(10, 10))
+    plt.imshow(image, cmap='Greys_r')
+    plt.axis('off')
+    plt.title(f"Latent Space Grid at Epoch {epoch}")
+
+    # save or show the grid if required
+    if save:
+        if epoch == 0:
+            plt.savefig(f"{date}/images/latent_grid_epoch_{epoch:03d}.{frame:03d}.png")
+        else:
+            plt.savefig(f"{date}/images/latent_grid_epoch_{epoch:03d}.png")
+    else:
+        plt.show()
+
+    # close the plot
+    plt.close()
+
+
+# function to plot the training and validation losses 
+def plot_losses(val_loss, train_loss, date=None, title='Training and Validation Losses'):
+    """
+    Plot the training and validation loss 
+
+    Parameters:
+    - val_loss: validation loss 
+    - train_loss: train_loss 
+    - date: to uniquely name the plot provide a date 
+    - title: title for the plot  
+    """
+    plt.figure(figsize=(10, 6))
+    plt.plot(train_loss, label='Training Loss')
+    plt.plot(val_loss, label='Validation Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.title(title)
+    plt.legend()
+    plt.grid(True)
+    if date:
+        plt.savefig(date + '.png')
+    
+    plt.show()
+
+
+# DEFINE LOSS FUNCTION 
+# define the reconstruction loss by Binary Cross-Entropy (sum over all pixels)
+reconstruction_loss = nn.BCELoss(reduction='sum')
+
+# define KL-divergence 
+def kl_divergence_loss(z_dist):
+    # calculate KL-divergence between the latent distribution (z_dist)
+    # and a standard normal distribution
+    return kl_divergence(z_dist,
+                         Normal(torch.zeros_like(z_dist.mean),
+                                torch.ones_like(z_dist.stddev))
+                         ).sum(-1).sum()
+
+# TRAINING PROCESS 
 # Training function for the VAE model 
 def train_model(date, epochs=10, z_dim=16):
     # use GPU if available 
@@ -240,24 +330,28 @@ def train_model(date, epochs=10, z_dim=16):
         val_recon_loss = 0.0
         val_kl_loss = 0.0
 
-        # HIER BIN ICH BEIM KOMMENTIEREN 
+        
+        # loop through validation data loader 
         with torch.no_grad():
             for images, _ in tqdm(test_loader, desc="Validation"):
+                # move images to the appropriate device 
                 images = images.to(device)
+                # reconstruct images 
                 recon_images, encoding = model(images)
 
+                # compute reconstruction loss. KL-divergence loss and sum to ELBO loss   
                 recon_loss = reconstruction_loss(recon_images, images)
                 kl_loss = kl_divergence_loss(encoding)
                 loss = recon_loss + kl_loss
 
+                # accumulate losses 
                 val_loss += loss.item()
                 val_recon_loss += recon_loss.item()
                 val_kl_loss += kl_loss.item()
 
 
-
+        # average training losses over all batches and append to lists for plotting later
         val_loss /= len(test_loader.dataset)
-
         val_recon_loss /= len(test_loader.dataset)
         val_kl_loss /= len(test_loader.dataset)
 
@@ -265,119 +359,60 @@ def train_model(date, epochs=10, z_dim=16):
         validation_recon_losses.append(val_recon_loss)
         validation_kl_losses.append(val_kl_loss)
 
-
+        # print training and validation loss for current epoch 
         print(f"Epoch {epoch + 1} - Training Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}")
 
+        # Visualization and Reconstruction phase 
         # load images for visualization, use same images for every epoch
         images, _ = next(iter(test_loader))[:8]
-        # Reconstruction phase
+        # reconstruct images 
         recon_images, _ = model(images)
 
-        # Visualization placeholder
+        # visualize images and reconstructed images
         show_images_grid(images.cpu(), date, title=f'Input images after epoch {epoch + 1}', save=True)
         show_images_grid(recon_images.cpu(), date, title=f'Reconstructed images after epoch {epoch + 1}', save=True)
 
+        # in the second and all further epochs and for latent dimension 2 plot the latent space  
         if z_dim == 2 and epoch != 0:
             plot_latent_images(model, 20, epoch, z_dim=2, im_size=28, save=True, date=date)
 
     return model, training_losses, validation_losses, training_recon_losses, validation_recon_losses, training_kl_losses, validation_kl_losses
 
-def plot_latent_images(model, n, epoch, z_dim=2, im_size=28, save=True, date=None, frame=None):
-    """
-    Generate a grid of images by sampling from the latent space.
-
-    Parameters:
-    - model: The trained VAE model.
-    - n: The number of images per dimension in the grid.
-    - epoch: Current training epoch.
-    - z_dim: Dimensionality of the latent space.
-    - im_size: Size of each generated image.
-    - save: Whether to save the resulting image grid.
-    - save_dir: Directory to save the images if save=True.
-    """
-    # Ensure the model is in evaluation mode
-    model.eval()
-
-    # Create image grid
-    image_width = im_size * n
-    image_height = image_width
-    image = np.zeros((image_height, image_width))
-
-    # Generate evenly spaced points in the latent space
-    grid_values = torch.linspace(-2, 2, steps=n)
-
-    # Generate images for each point in the grid
-    with torch.no_grad():
-        for i, yi in enumerate(grid_values):
-            for j, xi in enumerate(grid_values):
-                z = torch.tensor([[xi, yi]], dtype=torch.float32).to(next(model.parameters()).device)
-                z = z.view(-1, z_dim)  # Adjust the dimensions for the decoder
-                decoded_image = model.decoder(z)
-                decoded_image = decoded_image.squeeze(0).squeeze(0).cpu().numpy()  # (1, 1, 28, 28) -> (28, 28)
-                image[i * im_size: (i + 1) * im_size,
-                      j * im_size: (j + 1) * im_size] = decoded_image
-
-    # Plot the resulting image grid
-    plt.figure(figsize=(10, 10))
-    plt.imshow(image, cmap='Greys_r')
-    plt.axis('off')
-    plt.title(f"Latent Space Grid at Epoch {epoch}")
-
-    # Save the grid if required
-    if save:
-        if epoch == 0:
-            plt.savefig(f"{date}/images/latent_grid_epoch_{epoch:03d}.{frame:03d}.png")
-        else:
-            plt.savefig(f"{date}/images/latent_grid_epoch_{epoch:03d}.png")
-    else:
-        plt.show()
-
-    # Close the plot
-    plt.close()
 
 
-def plot_losses(val_loss, train_loss, date=None, title='Training and Validation Losses'):
-    plt.figure(figsize=(10, 6))
-    plt.plot(train_loss, label='Training Loss')
-    plt.plot(val_loss, label='Validation Loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.title(title)
-    plt.legend()
-    plt.grid(True)
-    if date:
-        plt.savefig(date + '.png')
-    
-    plt.show()
-
+# TRAINING  
+# ensures the code runs only when the script is executed directly
 if __name__ == "__main__":
+    # set dimensionality of the latent space 
     z_dim = 8
+    # determine the device to use (GPU if available)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device {device}")
 
-    train_epsiodes = 20
+    # number of training epochs 
+    train_epochs = 20
     
-    # date and time for model name
-
+    # date and time for model name 
     date = time.strftime("%Y%m%d-%H%M%S")
     model_name = 'vae_' + str(z_dim) + '_' + date
 
-    # create folder with date and time
+    # create a folder to store results, named using the current date and time
     os.makedirs(date, exist_ok=True)
 
-    # create in the folder a new folder images
+    # create in the folder a new subfolder images
     os.makedirs(date + '/images', exist_ok=True)
-
 
     # if model exists, load it else train it
     try:
         vae = VAE(z_dim=z_dim)
         vae.load_state_dict(torch.load(model_name + '.pth'))
     except FileNotFoundError:
-        vae, train_losses, val_losses, train_recon_losses, val_recon_losses, train_kl_losses, val_kl_losses = train_model(date, epochs=train_epsiodes, z_dim=z_dim)
+        # if the model is not found, train a new model
+        vae, train_losses, val_losses, train_recon_losses, val_recon_losses, train_kl_losses, val_kl_losses = train_model(date, epochs=train_epochs, z_dim=z_dim)
+        # save the trained model's weights to a file 
         torch.save(vae.state_dict(), date + '/' + model_name + '.pth')
 
-        # save training and validation losses with numpy .npy
+        # save training and validation losses as .npy files 
         np.save(date + '/' + 'train_losses_' + model_name + '.npy', np.array(train_losses))
         np.save(date + '/' + 'val_losses_' + model_name + '.npy', np.array(val_losses))
 
@@ -387,13 +422,13 @@ if __name__ == "__main__":
         np.save(date + '/' + 'train_kl_losses_' + model_name + '.npy', np.array(train_kl_losses))
         np.save(date + '/' + 'val_kl_losses_' + model_name + '.npy', np.array(val_kl_losses))
 
-    # plot the losses
+
+    # plot reconstruction loss, KL-divergence loss and total loss individually 
     plot_losses(val_losses, train_losses, date + "/losses", title='ELBO Losses')
     plot_losses(val_recon_losses, train_recon_losses, date + "/recon_losses", title='Reconstruction Losses')
     plot_losses(val_kl_losses, train_kl_losses, date + "/kl_losses", title='KL Divergence Losses')
 
-
-    # show some test images
+    # show some original and reconstructed test images
     for images, _ in test_loader:
         images = images.to(device)
         recon_images, encoding = vae(images)
